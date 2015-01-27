@@ -15,18 +15,29 @@ import Data.List
 import Data.Monoid
 import Servant.JQuery
 
+-- | PureScript rendering settings
 data PSSettings = PSSettings {
-    _baseURL :: String
+    _baseURL :: String -- ^ Base URL for AJAX requests
 }
 
 makeLenses ''PSSettings
 
-generatePSModule :: PSSettings -> String -> [AjaxReq] -> String
+-- | Generate a PureScript module containing a list of functions for
+-- AJAX requests.
+generatePSModule
+    :: PSSettings -- ^ PureScript rendering settings
+    -> String -- ^ Name of PureScript module
+    -> [AjaxReq] -- ^ List of AJAX requests to render in module
+    -> String -- ^ Rendered PureScript module
 generatePSModule settings mname reqs = "module " <> mname <> " where"
     <> "\n"
     <> "\n" <> intercalate "\n" (map (generatePS settings) reqs)
 
-generatePS :: PSSettings -> AjaxReq -> String
+-- | Generate a single PureScript function for an AJAX request.
+generatePS
+    :: PSSettings -- ^ PureScript rendering settings
+    -> AjaxReq -- ^ AJAX request to render
+    -> String -- ^ Rendered PureScript
 generatePS settings req = "\n"
     <> "foreign import " <> fname
     <> "\n" <> "\"\"\""
@@ -91,6 +102,7 @@ generatePS settings req = "\n"
         <> "\n" <> dataBody
         <> "\n" <> "});"
 
+-- | Default PureScript settings: specifies an empty base URL
 defaultSettings :: PSSettings
 defaultSettings = PSSettings ""
 
