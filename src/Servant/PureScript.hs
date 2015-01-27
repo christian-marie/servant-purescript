@@ -31,6 +31,9 @@ generatePSModule
     -> String -- ^ Rendered PureScript module
 generatePSModule settings mname reqs = "module " <> mname <> " where"
     <> "\n"
+    <> "\n" <> "import Data.Foreign"
+    <> "\n" <> "import Data.Function"
+    <> "\n"
     <> "\n" <> intercalate "\n" (map (generatePS settings) reqs)
 
 -- | Generate a single PureScript function for an AJAX request.

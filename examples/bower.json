@@ -1,0 +1,25 @@
+{
+  "name": "servant-purescript-counter",
+  "version": "0.0.0",
+  "authors": [
+    "Anchor Engineering <engineering@anchor.net.au>"
+  ],
+  "description": "Example for servant-purescript",
+  "keywords": [
+    "Haskell",
+    "Servant",
+    "Purescript"
+  ],
+  "license": "BSD3",
+  "homepage": "https://www.anchor.com.au",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+  ],
+  "dependencies": {
+    "purescript-foreign": "~0.3.0"
+  }
+}
+
