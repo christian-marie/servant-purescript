@@ -9,13 +9,10 @@
 module Main where
 
 import Data.Either (isRight)
-import Data.Maybe
 import Data.Proxy
 import qualified Language.PureScript as P
-import System.Process
 import Test.Hspec
 import qualified Text.Parsec as TP
-import qualified Text.Parsec.Expr as TP
 
 import Servant.API
 import Servant.JQuery

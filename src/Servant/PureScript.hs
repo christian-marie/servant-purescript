@@ -46,7 +46,7 @@ generatePS settings req = "\n"
     
     queryParams = req ^.. reqUrl.queryStr.traverse
     
-    body = if req ^. reqBody then ["body"] else []
+    body = ["body" | req ^. reqBody]
     
     fname = req ^. funcName
     
@@ -63,14 +63,14 @@ generatePS settings req = "\n"
     renderedReqHeaders =
         if null hs
             then ""
-            else ("headers: {" <> headersStr <> "},")
+            else "headers: {" <> headersStr <> "},"
     
     headersStr = intercalate "," (map headerStr hs)
     headerStr :: HeaderArg -> String
     headerStr h = "\"" <> headerArgName h <> "\": " <> show h
     
     typeDec = "forall a b eff. Fn" <> show (length args) <> " Foreign "
-        <> intercalate " " (map toTypeDec args) <> " (eff Unit)"
+        <> unwords (map toTypeDec args) <> " (eff Unit)"
     
     toTypeDec "onSuccess" = "(b)"
     toTypeDec "onError"   = "(b)"
