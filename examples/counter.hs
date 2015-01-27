@@ -4,6 +4,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 import Control.Concurrent.STM
+import Control.Monad
 import Control.Monad.IO.Class
 import Data.Aeson
 import Data.List
@@ -86,17 +87,22 @@ main = do
                                  ] 
 
     -- Run bower to import dependencies
-    _ <- system "bower install"
+    _ <- system "cd examples && bower install"
     
-    (matches, _) <- globDir [compile "bower_components/**/*.purs"] "."
+    (matches, _) <- globDir [compile "examples/bower_components/**/*.purs"] "."
 
     -- Compile PureScript to JS
-    _ <- system $ "psc -module=App --main=App "
-        <> (intercalate " " $ head matches)
-        <> (tmp </> "api.purs")
-        <> " > "
-        <> (www </> "api.js")
+    let cmd = "psc -module=App --main=App "
+            <> (intercalate " " $ head matches)
+            <> " "
+            <> (tmp </> "api.purs")
+            <> " > "
+            <> (www </> "api.js")
 
+    putStrLn cmd
+
+    _ <- system cmd
+    
     -- setup a shared counter
     cnt <- newCounter
 
