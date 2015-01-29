@@ -11,6 +11,7 @@ module Servant.PureScript (
 ) where
 
 import Control.Lens
+import Data.Char
 import Data.List
 import Data.Monoid
 import Servant.JQuery
@@ -29,32 +30,35 @@ generatePSModule
     -> String -- ^ Name of PureScript module
     -> [AjaxReq] -- ^ List of AJAX requests to render in module
     -> String -- ^ Rendered PureScript module
-generatePSModule settings mname reqs = "module " <> mname <> " where"
-    <> "\n"
-    <> "\n" <> "import Data.Foreign"
-    <> "\n" <> "import Data.Function"
-    <> "\n"
-    <> "\n" <> intercalate "\n" (map (generatePS settings) reqs)
+generatePSModule settings mname reqs = unlines
+        [ "module " <> mname <> " where"
+        , ""
+        , "import Data.Foreign"
+        , "import Data.Function"
+        , "import Data.Maybe"
+        , "import Data.Monoid"
+        , ""
+        , "foreign import encodeURIComponent :: String -> String"
+        , ""
+        , intercalate "\n" (map (generatePS settings) reqs)
+        , ""
+        , ajaxImpl
+        ]
 
 -- | Generate a single PureScript function for an AJAX request.
 generatePS
     :: PSSettings -- ^ PureScript rendering settings
     -> AjaxReq -- ^ AJAX request to render
     -> String -- ^ Rendered PureScript
-generatePS settings req = "\n"
-    <> "foreign import " <> fname
-    <> "\n" <> "\"\"\""
-    <> "\n" <> jsFun
-    <> "\n" <> "\"\"\" :: " <> typeDec
-    <> "\n"
+generatePS settings req = unsafeAjaxRequest
   where
-    args = captures
-        <> map (view argName) queryParams
-        <> body
-        <> map (toValidFunctionName . (<>) "header" . headerArgName) hs
-        <> ["onSuccess", "onError"]
+    args = suppliedArgs <> ["onSuccess", "onError"]
     
+    suppliedArgs = captures <> queryArgs <> body <> headerArgs
+
     captures = map captureArg . filter isCapture $ req ^. reqUrl.path
+    queryArgs  = map (view argName) queryParams
+    headerArgs = map (toValidFunctionName . (<>) "header" . headerArgName) hs
     
     hs = req ^. reqHeaders
     
@@ -66,47 +70,82 @@ generatePS settings req = "\n"
     
     method = req ^. reqMethod
     
-    url = settings ^. baseURL <> urlArgs <> queryArgs
+    htname = capitalise (fname <> "Headers")
     
-    urlArgs = jsSegments $ req ^.. reqUrl.path.traverse
-    
-    queryArgs = if null queryParams then "" else " + \"?" <> jsParams queryParams <> "\""
-    
-    dataBody = if req ^. reqBody then "data: JSON.stringify(body)," else ""
-    
-    renderedReqHeaders =
-        if null hs
-            then ""
-            else "headers: {" <> headersStr <> "},"
-    
-    headersStr = intercalate "," (map headerStr hs)
-    headerStr :: HeaderArg -> String
-    headerStr h = "\"" <> headerArgName h <> "\": " <> show h
-    
-    typeDec = "forall a b eff. Fn" <> show (length args) <> " Foreign "
-        <> unwords (map toTypeDec args) <> " (eff Unit)"
-    
-    toTypeDec "onSuccess" = "(b)"
-    toTypeDec "onError"   = "(b)"
-    toTypeDec _           = "(a)"
-    
-    jsFun = "function " <> fname <> " (" <> intercalate "," args <> ") {"
-        <> "\n" <> "return function(){"
-        <> "\n" <> jsFunInternal
-        <> "\n" <> "};"
-        <> "\n" <> "}"
+    unsafeAjaxRequest = unlines
+        [ typeSig
+        , fname <> " " <> argString <> " = do"
+        , "    runFn7 ajaxImpl url method headers b isJust onSuccess onError"
+        , "  where"
+        , "    url = \"" <> urlString
+        , "    method = \"" <> method <> "\""
+        , "    headers = " <> htname <> " " <> intercalate " " headerArgs
+        , "    b = " <> bodyString
+        ]
+      where
+        typeSig = concat
+            [ fname
+            , " :: forall eff. "
+            , intercalate " -> " $ map (\_ -> "String") suppliedArgs
+            , " (a -> b) -> (a -> b) -> eff Unit"
+            ]
+        argString = intercalate " " args
+        urlString = concat
+            [ "\""
+            , settings ^. baseURL
+            , "\""
+            , psPathSegments $ req ^.. reqUrl.path.traverse
+            , if null queryParams then "" else "\"?\" <> " <> psParams queryParams
+            ]
+        bodyString = if req ^. reqBody then "(Just body)" else "Nothing"
 
-    jsFunInternal = "$.ajax({"
-        <> "\n" <> "url: \"" <> url <> "\","
-        <> "\n" <> "type: \"" <> method <> "\","
-        <> "\n" <> "success: onSuccess,"
-        <> "\n" <> "error: onError,"
-        <> "\n" <> renderedReqHeaders
-        <> "\n" <> dataBody
-        <> "\n" <> "});"
+ajaxImpl :: String
+ajaxImpl = unlines
+    [ "foreign import ajaxImpl"
+    , "\"\"\""
+    , "function ajaxImpl(url, method, headers, body, isJust, onSuccess, onError){"
+    , "return function(){"
+    , "$.ajax({"
+    , "  url: \" + url + \","
+    , ", type: \" + method+ \","
+    , ", success: onSuccess,"
+    , ", error: onError,"
+    , ", headers: headers"
+    , ", data: (isJust(body) ? JSON.stringify(body) : null)"
+    , "});"
+    , "};"
+    , "}"
+    , "\"\"\" :: forall a eff. Fn7 (String) (String) (a) (Maybe String) (Maybe String -> Bool) (?) (?) (eff Unit}"
+    ]
 
 -- | Default PureScript settings: specifies an empty base URL
 defaultSettings :: PSSettings
 defaultSettings = PSSettings ""
 
+-- | Capitalise a string for use in PureScript variable name
+capitalise :: String -> String
+capitalise [] = []
+capitalise (x:xs) = [toUpper x] <> xs
+
+-- | Turn a list of path segments into a URL string
+psPathSegments :: [Segment] -> String
+psPathSegments = (<> "/") . intercalate " <> \"/\" <> " . map psSegmentToStr
+
+-- | Turn an individual path segment into a PureScript variable handler
+psSegmentToStr :: Segment -> String
+psSegmentToStr (Static s) = "\"" <> s <> "\""
+psSegmentToStr (Cap s)    = "encodeURIComponent " <> s
+
+-- | Turn a list of query string params into a URL string
+psParams :: [QueryArg] -> String
+psParams = intercalate " <> \"&\" <> " . map psParamToStr
+
+-- | Turn an individual query string param into a PureScript variable handler
+psParamToStr :: QueryArg -> String
+psParamToStr qarg =
+  case qarg ^. argType of
+    Normal -> "\"" <> name <> "=\" <> encodeURIComponent " <> name
+    Flag   -> "\"" <> name <> "=\""
+    List   -> "\"" <> name <> "[]=\" <> encodeURIComponent " <> name
+  where name = qarg ^. argName
 
