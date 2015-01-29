@@ -19,7 +19,7 @@ source-repository head
 flag example
   description: Build the example too
   manual:      True
-  default:     True
+  default:     False
 
 library
   exposed-modules:     Servant.PureScript
