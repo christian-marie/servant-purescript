@@ -79,17 +79,17 @@ generatePS settings req = unsafeAjaxRequest
         , "  where"
         , "    url = \"" <> urlString
         , "    method = \"" <> method <> "\""
-        , "    headers = " <> htname <> " " <> intercalate " " headerArgs
+        , "    headers = " <> htname <> " " <> unwords headerArgs
         , "    b = " <> bodyString
         ]
       where
         typeSig = concat
             [ fname
             , " :: forall eff. "
-            , intercalate " -> " $ map (\_ -> "String") suppliedArgs
+            , intercalate " -> " $ map (const "String") suppliedArgs
             , " (a -> b) -> (a -> b) -> eff Unit"
             ]
-        argString = intercalate " " args
+        argString = unwords args
         urlString = concat
             [ "\""
             , settings ^. baseURL
