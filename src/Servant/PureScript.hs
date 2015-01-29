@@ -40,6 +40,8 @@ generatePSModule settings mname reqs = unlines
         , ""
         , "foreign import encodeURIComponent :: String -> String"
         , ""
+        , xhrType
+        , ""
         , intercalate "\n" (map (generatePS settings) reqs)
         , ""
         , ajaxImpl
@@ -50,7 +52,11 @@ generatePS
     :: PSSettings -- ^ PureScript rendering settings
     -> AjaxReq -- ^ AJAX request to render
     -> String -- ^ Rendered PureScript
-generatePS settings req = unsafeAjaxRequest
+generatePS settings req = concat
+    [ unsafeAjaxRequest
+    , "\n\n"
+    , headerType
+    ]
   where
     args = suppliedArgs <> ["onSuccess", "onError"]
     
@@ -72,12 +78,23 @@ generatePS settings req = unsafeAjaxRequest
     
     htname = capitalise (fname <> "Headers")
     
+    headerType = concat
+        ([ "data "
+         , htname
+         , " = "
+         , htname
+         ] <> hfields)
+    hfields = if null headerArgs
+                then []
+                else [" { ", intercalate ", " $ map toHField headerArgs, " }"]
+    toHField h = h <> " :: String"
+    
     unsafeAjaxRequest = unlines
         [ typeSig
         , fname <> " " <> argString <> " = do"
         , "    runFn7 ajaxImpl url method headers b isJust onSuccess onError"
         , "  where"
-        , "    url = \"" <> urlString
+        , "    url = " <> urlString
         , "    method = \"" <> method <> "\""
         , "    headers = " <> htname <> " " <> unwords headerArgs
         , "    b = " <> bodyString
@@ -87,14 +104,15 @@ generatePS settings req = unsafeAjaxRequest
             [ fname
             , " :: forall eff. "
             , intercalate " -> " $ map (const "String") suppliedArgs
-            , " (a -> b) -> (a -> b) -> eff Unit"
+            , " -> (" <> responseOK <> ") -> (" <> responseErr <>") -> eff Unit"
             ]
         argString = unwords args
         urlString = concat
             [ "\""
             , settings ^. baseURL
-            , "\""
+            , "/"
             , psPathSegments $ req ^.. reqUrl.path.traverse
+            , "\""
             , if null queryParams then "" else "\"?\" <> " <> psParams queryParams
             ]
         bodyString = if req ^. reqBody then "(Just body)" else "Nothing"
@@ -106,17 +124,29 @@ ajaxImpl = unlines
     , "function ajaxImpl(url, method, headers, body, isJust, onSuccess, onError){"
     , "return function(){"
     , "$.ajax({"
-    , "  url: \" + url + \","
-    , ", type: \" + method+ \","
-    , ", success: onSuccess,"
-    , ", error: onError,"
+    , "  url: url"
+    , ", type: method"
+    , ", success: onSuccess"
+    , ", error: onError"
     , ", headers: headers"
     , ", data: (isJust(body) ? JSON.stringify(body) : null)"
     , "});"
     , "};"
     , "}"
-    , "\"\"\" :: forall a eff. Fn7 (String) (String) (a) (Maybe String) (Maybe String -> Bool) (?) (?) (eff Unit}"
+    , "\"\"\" :: forall h eff. Fn7 (String) (String) (h) (Maybe String) (Maybe String -> Bool) (" <> responseOK <>") (" <> responseErr <> ") (eff Unit)"
     ]
+
+-- | Type for XHR
+xhrType :: String
+xhrType = "foreign import data XHR :: *"
+
+-- | Type alias for valid response handlers
+responseOK :: String
+responseOK = "String -> String -> XHR -> eff Unit"
+
+-- | Type alias for error response handlers
+responseErr :: String
+responseErr = "XHR -> String -> String -> eff Unit"
 
 -- | Default PureScript settings: specifies an empty base URL
 defaultSettings :: PSSettings
@@ -129,12 +159,12 @@ capitalise (x:xs) = [toUpper x] <> xs
 
 -- | Turn a list of path segments into a URL string
 psPathSegments :: [Segment] -> String
-psPathSegments = (<> "/") . intercalate " <> \"/\" <> " . map psSegmentToStr
+psPathSegments = intercalate "/" . map psSegmentToStr
 
 -- | Turn an individual path segment into a PureScript variable handler
 psSegmentToStr :: Segment -> String
-psSegmentToStr (Static s) = "\"" <> s <> "\""
-psSegmentToStr (Cap s)    = "encodeURIComponent " <> s
+psSegmentToStr (Static s) = s
+psSegmentToStr (Cap s)    = "\" <> encodeURIComponent " <> s <> " <> \""
 
 -- | Turn a list of query string params into a URL string
 psParams :: [QueryArg] -> String
