@@ -102,10 +102,12 @@ generatePS settings req = concat
       where
         typeSig = concat
             [ fname
-            , " :: forall eff. "
+            , " :: "
             , intercalate " -> " $ map (const "String") suppliedArgs
-            , " -> (" <> responseOK <> ") -> (" <> responseErr <>") -> eff Unit"
+            , argLink
+            , "(" <> responseOK <> ") -> (" <> responseErr <>") -> Eff Unit"
             ]
+        argLink = if null suppliedArgs then "" else " -> "
         argString = unwords args
         urlString = concat
             [ "\""
@@ -133,7 +135,7 @@ ajaxImpl = unlines
     , "});"
     , "};"
     , "}"
-    , "\"\"\" :: forall h eff. Fn7 (String) (String) (h) (Maybe String) (Maybe String -> Bool) (" <> responseOK <>") (" <> responseErr <> ") (eff Unit)"
+    , "\"\"\" :: forall h. Fn7 (String) (String) (h) (Maybe String) (Maybe String -> Bool) (" <> responseOK <>") (" <> responseErr <> ") (Eff Unit)"
     ]
 
 -- | Type for XHR
@@ -142,11 +144,11 @@ xhrType = "foreign import data XHR :: *"
 
 -- | Type alias for valid response handlers
 responseOK :: String
-responseOK = "String -> String -> XHR -> eff Unit"
+responseOK = "String -> String -> XHR -> Eff Unit"
 
 -- | Type alias for error response handlers
 responseErr :: String
-responseErr = "XHR -> String -> String -> eff Unit"
+responseErr = "XHR -> String -> String -> Eff Unit"
 
 -- | Default PureScript settings: specifies an empty base URL
 defaultSettings :: PSSettings
