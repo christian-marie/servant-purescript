@@ -117,7 +117,7 @@ main = do
     (matches, _) <- globDir [compile "examples/bower_components/**/*.purs"] "."
 
     -- Compile PureScript to JS
-    let cmd = "psc -module=App --main=App "
+    let cmd = "psc "
             <> (intercalate " " $ head matches)
             <> " "
             <> (tmp </> "api.purs")
