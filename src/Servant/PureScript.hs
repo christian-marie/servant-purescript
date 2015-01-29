@@ -33,6 +33,7 @@ generatePSModule
 generatePSModule settings mname reqs = unlines
         [ "module " <> mname <> " where"
         , ""
+        , "import Control.Monad.Eff"
         , "import Data.Foreign"
         , "import Data.Function"
         , "import Data.Maybe"
@@ -41,6 +42,8 @@ generatePSModule settings mname reqs = unlines
         , "foreign import encodeURIComponent :: String -> String"
         , ""
         , xhrType
+        , commonAliases
+        , funcTypes
         , ""
         , intercalate "\n" (map (generatePS settings) reqs)
         , ""
@@ -91,7 +94,7 @@ generatePS settings req = concat
     
     unsafeAjaxRequest = unlines
         [ typeSig
-        , fname <> " " <> argString <> " = do"
+        , fname <> " " <> argString <> " ="
         , "    runFn7 ajaxImpl url method headers b isJust onSuccess onError"
         , "  where"
         , "    url = " <> urlString
@@ -102,10 +105,10 @@ generatePS settings req = concat
       where
         typeSig = concat
             [ fname
-            , " :: "
+            , " :: forall eff. "
             , intercalate " -> " $ map (const "String") suppliedArgs
             , argLink
-            , "(" <> responseOK <> ") -> (" <> responseErr <>") -> Eff Unit"
+            , "(SuccessFn eff) -> (FailureFn eff) -> (Eff (xhr :: XHREff | eff) Unit)"
             ]
         argLink = if null suppliedArgs then "" else " -> "
         argString = unwords args
@@ -133,22 +136,35 @@ ajaxImpl = unlines
     , ", headers: headers"
     , ", data: (isJust(body) ? JSON.stringify(body) : null)"
     , "});"
+    , "return {};"
     , "};"
     , "}"
-    , "\"\"\" :: forall h. Fn7 (String) (String) (h) (Maybe String) (Maybe String -> Bool) (" <> responseOK <>") (" <> responseErr <> ") (Eff Unit)"
+    , "\"\"\" :: forall eff h. Fn7 URL Method h (Maybe Body) (Maybe Body -> Boolean) (SuccessFn eff) (FailureFn eff) (Eff (xhr :: XHREff | eff) Unit)"
+    ]
+
+-- | Type aliases for common things
+commonAliases :: String
+commonAliases = unlines
+    [ "type URL = String"
+    , "type Method = String"
+    , "type Body = String"
+    , "type Status = String"
+    , "type ResponseData = String"
     ]
 
 -- | Type for XHR
 xhrType :: String
-xhrType = "foreign import data XHR :: *"
+xhrType = unlines
+    [ "foreign import data XHR :: *"
+    , "foreign import data XHREff :: !"
+    ]
 
--- | Type alias for valid response handlers
-responseOK :: String
-responseOK = "String -> String -> XHR -> Eff Unit"
-
--- | Type alias for error response handlers
-responseErr :: String
-responseErr = "XHR -> String -> String -> Eff Unit"
+-- | Type aliases for success & failure functions
+funcTypes :: String
+funcTypes = unlines
+    [ "type SuccessFn eff = (ResponseData -> Status -> XHR -> (Eff (xhr :: XHREff | eff) Unit))"
+    , "type FailureFn eff = (XHR -> Status -> ResponseData -> (Eff (xhr :: XHREff | eff) Unit))"
+    ]
 
 -- | Default PureScript settings: specifies an empty base URL
 defaultSettings :: PSSettings

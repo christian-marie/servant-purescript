@@ -17,11 +17,13 @@ or <a href="/doc">view the docs</a>
 <script type="text/javascript">
 $(document).ready(function() {
   // we get the current value stored by the server when the page is loaded
-  getcounter(updateCounter, alert);
+  var r = PS.App.getcounter(updateCounter)(alert)();
+  console.log(r);
 
   // we update the value every 1sec, in the same way
   window.setInterval(function() {
-    getcounter(updateCounter, alert);
+    var r = PS.App.getcounter(updateCounter)(alert)();
+    console.log(r);
   }, 1000);
 });
 
@@ -33,7 +35,7 @@ function updateCounter(response)
 // when the button is clicked, ask the server to increase
 // the value by one
 $('#inc').click(function() {
-  postcounter(updateCounter, alert);
+  PS.App.postcounter(updateCounter)(alert)();
 });
 </script>
 </body>
