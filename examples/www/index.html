@@ -17,13 +17,11 @@ or <a href="/doc">view the docs</a>
 <script type="text/javascript">
 $(document).ready(function() {
   // we get the current value stored by the server when the page is loaded
-  var r = PS.App.getcounter(updateCounter)(alert)();
-  console.log(r);
+  PS.App.getcounter(updateCounter)(alert)();
 
   // we update the value every 1sec, in the same way
   window.setInterval(function() {
-    var r = PS.App.getcounter(updateCounter)(alert)();
-    console.log(r);
+    PS.App.getcounter(updateCounter)(alert)();
   }, 1000);
 });
 
