@@ -13,12 +13,15 @@ import qualified Thermite.Action as T
 import qualified Thermite.Events as T
 import qualified Thermite.Types as T
 
+import Debug.Trace
+
 import App.ToDoItem
 import App.Ajax
 
 -- * Define actions
 
-data Action = DoNothing -- ^ Just sit and do nothing
+data Action = GetList -- ^ Just get the latest list
+            | DoNothing -- ^ Just sit and do nothing
 
 -- * Define state
 
@@ -27,12 +30,27 @@ type State = {
 }
 
 initialState :: State
-initialState = { todoList: ToDoList { _todoItems: []} }
+initialState = { todoList: ToDoList { _todoItems: [] }}
 
 -- * Handle actions
 
+-- | Handle all available actions
 performAction :: T.PerformAction _ Action (T.Action _ State)
 performAction _ DoNothing = T.modifyState id
+performAction _ GetList   = getList
+
+-- | Get current todo list
+getList :: T.Action _ State Unit
+getList = T.async $
+    getitems (\d _ _ -> do
+        case decode d :: Maybe ToDoList of
+            Just l -> do
+                T.modifyState { todoList: l }
+                return Unit
+            _      -> do
+                T.modifyState { todoList: ToDoList { _todoItems: [] }}
+                return Unit
+    ) (\_ _ d -> print d)
 
 -- * Rendering the list
 
@@ -57,7 +75,7 @@ render ctx s _ = T.div [ A.className "app-container" ] [ T.ul' current ]
 
 spec :: T.Spec _ State _ Action
 spec = T.simpleSpec initialState performAction render
-        # T.componentWillMount DoNothing
+        # T.componentWillMount GetList
 
 main = do
     let component = T.createClass spec
