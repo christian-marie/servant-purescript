@@ -54,11 +54,11 @@ testApi = Proxy
 
 -- where our static files reside
 www :: FilePath
-www = "examples/www"
+www = "examples/counter/www"
 
 -- where temporary files reside
 tmp :: FilePath
-tmp = "examples/temp"
+tmp = "examples/counter/temp"
 
 -- defining handlers
 server :: TVar Counter -> Server TestApi
@@ -87,9 +87,9 @@ main = do
                                  ]
 
     -- Run bower to import dependencies
-    _ <- system "cd examples && bower install"
+    _ <- system "cd examples/counter && bower install"
 
-    (matches, _) <- globDir [compile "examples/bower_components/**/*.purs"] "."
+    (matches, _) <- globDir [compile "examples/counter/bower_components/**/*.purs"] "."
 
     -- Compile PureScript to JS
     let cmd = "psc "

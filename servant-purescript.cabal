@@ -58,6 +58,38 @@ executable counter
     , warp
   default-language: Haskell2010
 
+executable todolist
+  main-is: ToDo.hs
+  ghc-options: -O2 -Wall
+  hs-source-dirs: examples/todo
+  
+  if flag(example)
+    buildable: True
+  else
+    buildable: False
+  
+  build-depends:
+      aeson
+    , base
+    , containers
+    , either
+    , filepath
+    , Glob
+    , lens
+    , mtl >= 2.2
+    , process
+    , purescript
+    , servant
+    , servant-server
+    , servant-jquery
+    , servant-purescript
+    , stm
+    , text
+    , transformers
+    , uuid
+    , warp
+  default-language: Haskell2010
+
 test-suite spec
   type:              exitcode-stdio-1.0
   hs-source-dirs:    test

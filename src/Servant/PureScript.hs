@@ -51,6 +51,8 @@ generatePSModule settings mname reqs = unlines
         ]
 
 -- | Generate a single PureScript function for an AJAX request.
+-- To prevent conflicts, generates a unique function name for every available
+-- function name and set of captures.
 generatePS
     :: PSSettings -- ^ PureScript rendering settings
     -> AjaxReq -- ^ AJAX request to render
@@ -69,11 +71,15 @@ generatePS settings req = concat
     queryArgs  = fmap (view argName) queryParams
     headerArgs = fmap (toValidFunctionName . (<>) "header" . headerArgName) $ req ^. reqHeaders
 
+    fname = req ^. funcName
+         <> if null captures then "" else "With"
+         <> intercalate "And" (fmap capitalise captures)
+
     queryParams = req ^.. reqUrl.queryStr.traverse
 
     body = ["body" | req ^. reqBody]
 
-    htname = capitalise (req ^. funcName <> "Headers")
+    htname = capitalise (fname <> "Headers")
 
     headerType = concat
         ([ "data "
@@ -88,7 +94,7 @@ generatePS settings req = concat
 
     unsafeAjaxRequest = unlines
         [ typeSig
-        , req ^. funcName <> " " <> argString <> " ="
+        , fname <> " " <> argString <> " ="
         , "    runFn7 ajaxImpl url method headers b isJust onSuccess onError"
         , "  where"
         , "    url = " <> urlString
@@ -98,7 +104,7 @@ generatePS settings req = concat
         ]
       where
         typeSig = concat
-            [ req ^. funcName
+            [ fname
             , " :: forall eff. "
             , intercalate " -> " $ fmap (const "String") suppliedArgs
             , argLink
