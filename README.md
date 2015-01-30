@@ -18,6 +18,10 @@ It's recommended that you use [bower](http://bower.io) to manage dependencies fo
 
 The following example is ported from the example provided with [*servant-jquery*](https://github.com/haskell-servant/servant-jquery).
 
+To build it (and the tests), run the following:
+
+`cabal configure --enable-tests --flags="example"`
+
 Here's [more information about the original example](https://github.com/haskell-servant/servant-jquery/tree/master/examples#examples) that will explain how it works and how it should run.
 
 The PureScript version is a direct port of this. The *servant-purescript* bindings are invoked within Javascript.

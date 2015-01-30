@@ -1,5 +1,5 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell   #-}
 
 module Servant.PureScript (
   jquery,
@@ -10,11 +10,11 @@ module Servant.PureScript (
   defaultSettings
 ) where
 
-import Control.Lens
-import Data.Char
-import Data.List
-import Data.Monoid
-import Servant.JQuery
+import           Control.Lens
+import           Data.Char
+import           Data.List
+import           Data.Monoid
+import           Servant.JQuery
 
 -- | PureScript rendering settings
 data PSSettings = PSSettings {
@@ -45,7 +45,7 @@ generatePSModule settings mname reqs = unlines
         , commonAliases
         , funcTypes
         , ""
-        , intercalate "\n" (map (generatePS settings) reqs)
+        , intercalate "\n" (fmap (generatePS settings) reqs)
         , ""
         , ajaxImpl
         ]
@@ -62,25 +62,19 @@ generatePS settings req = concat
     ]
   where
     args = suppliedArgs <> ["onSuccess", "onError"]
-    
+
     suppliedArgs = captures <> queryArgs <> body <> headerArgs
 
-    captures = map captureArg . filter isCapture $ req ^. reqUrl.path
-    queryArgs  = map (view argName) queryParams
-    headerArgs = map (toValidFunctionName . (<>) "header" . headerArgName) hs
-    
-    hs = req ^. reqHeaders
-    
+    captures = fmap captureArg . filter isCapture $ req ^. reqUrl.path
+    queryArgs  = fmap (view argName) queryParams
+    headerArgs = fmap (toValidFunctionName . (<>) "header" . headerArgName) $ req ^. reqHeaders
+
     queryParams = req ^.. reqUrl.queryStr.traverse
-    
+
     body = ["body" | req ^. reqBody]
-    
-    fname = req ^. funcName
-    
-    method = req ^. reqMethod
-    
-    htname = capitalise (fname <> "Headers")
-    
+
+    htname = capitalise (req ^. funcName <> "Headers")
+
     headerType = concat
         ([ "data "
          , htname
@@ -89,24 +83,24 @@ generatePS settings req = concat
          ] <> hfields)
     hfields = if null headerArgs
                 then []
-                else [" { ", intercalate ", " $ map toHField headerArgs, " }"]
+                else [" { ", intercalate ", " $ fmap toHField headerArgs, " }"]
     toHField h = h <> " :: String"
-    
+
     unsafeAjaxRequest = unlines
         [ typeSig
-        , fname <> " " <> argString <> " ="
+        , req ^. funcName <> " " <> argString <> " ="
         , "    runFn7 ajaxImpl url method headers b isJust onSuccess onError"
         , "  where"
         , "    url = " <> urlString
-        , "    method = \"" <> method <> "\""
+        , "    method = \"" <> req ^. reqMethod <> "\""
         , "    headers = " <> htname <> " " <> unwords headerArgs
         , "    b = " <> bodyString
         ]
       where
         typeSig = concat
-            [ fname
+            [ req ^. funcName
             , " :: forall eff. "
-            , intercalate " -> " $ map (const "String") suppliedArgs
+            , intercalate " -> " $ fmap (const "String") suppliedArgs
             , argLink
             , "(SuccessFn eff) -> (FailureFn eff) -> (Eff (xhr :: XHREff | eff) Unit)"
             ]
@@ -177,7 +171,7 @@ capitalise (x:xs) = [toUpper x] <> xs
 
 -- | Turn a list of path segments into a URL string
 psPathSegments :: [Segment] -> String
-psPathSegments = intercalate "/" . map psSegmentToStr
+psPathSegments = intercalate "/" . fmap psSegmentToStr
 
 -- | Turn an individual path segment into a PureScript variable handler
 psSegmentToStr :: Segment -> String
@@ -186,7 +180,7 @@ psSegmentToStr (Cap s)    = "\" <> encodeURIComponent " <> s <> " <> \""
 
 -- | Turn a list of query string params into a URL string
 psParams :: [QueryArg] -> String
-psParams = intercalate " <> \"&\" <> " . map psParamToStr
+psParams = intercalate " <> \"&\" <> " . fmap psParamToStr
 
 -- | Turn an individual query string param into a PureScript variable handler
 psParamToStr :: QueryArg -> String
