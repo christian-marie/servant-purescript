@@ -35,7 +35,7 @@ library
 executable counter
   main-is: counter.hs
   ghc-options: -O2 -Wall
-  hs-source-dirs: examples
+  hs-source-dirs: examples/counter
   
   if flag(example)
     buildable: True
