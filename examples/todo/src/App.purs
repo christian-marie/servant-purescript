@@ -87,16 +87,18 @@ performAction _ (UpdateText i t) = updateItemText i t
 performAction _ (SubmitItem x)   = sendItem x
 
 -- | Update state for a given item
-
 updateItemText :: Maybe UUID -> String -> T.Action _ State Unit
-updateItemText i t = do
-    let aaa = fprintUnsafe [show i, t]
+updateItemText u t = do
+    let aaa = fprintUnsafe [show u, t]
     T.modifyState (\o -> do
         let qqq = fprintUnsafe o.todoList
-        let qqr = fprintUnsafe $ newTodo o.todoList
-        { todoList: newTodo o.todoList })
+        let qqr = fprintUnsafe $ updateListItemText o.todoList u t
+        { todoList: updateListItemText o.todoList u t })
+
+-- | Update ToDoList item text
+updateListItemText :: ToDoList -> Maybe UUID -> String -> ToDoList
+updateListItemText (ToDoList l) u t = ToDoList { _todoItems: newToDoItems l }
   where
-    newTodo (ToDoList l) = ToDoList { _todoItems: newToDoItems l }
     newToDoItems l =
         case getItemByUuid (ToDoList l) i of
             Just item -> replace [item] [new item] l._todoItems

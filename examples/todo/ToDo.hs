@@ -247,8 +247,7 @@ appFiles src = do
 -- | Build and run everything
 main :: IO ()
 main = do
-    let ajaxPS = tmp </> "App.Ajax.purs"
-    let appPS = appPath </> "App.purs"
+    let ajaxPS = appPath </> "src/App" </> "App.Ajax.purs"
     let appJS = www </> "app.js"
 
     -- Write Purescript module
@@ -256,9 +255,8 @@ main = do
 
     -- Get dependencies and compile PureScript
     sourceFiles <- bower
-    af <- appFiles (appPath </> "App")
-    df <- appFiles (appPath </> "Data")
-    psc sourceFiles (af <> df <> [ajaxPS, appPS]) appJS
+    af <- appFiles (appPath </> "src")
+    psc sourceFiles af appJS
 
     -- Initialise state and run app
     newList >>= flip runServer 8080
