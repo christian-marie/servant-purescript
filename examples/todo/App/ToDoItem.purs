@@ -1,5 +1,6 @@
 module App.ToDoItem where
 
+import Data.Foldable
 import Data.JSON
 import Data.Maybe
 import Data.Monoid
@@ -12,7 +13,15 @@ type UUID = String
 data ToDoItem = ToDoItem {
                   _todoIdent :: Maybe UUID,
                   _todoText  :: String,
-                  _todoDone  :: Boolean }
+                  _todoDone  :: Boolean}
+
+-- | Eq instance for ToDoItem
+instance todoItemEq :: Eq ToDoItem where
+    (==) (ToDoItem a) (ToDoItem b) = and $
+        [ a._todoIdent == b._todoIdent
+        , a._todoText  == b._todoText
+        , a._todoDone  == b._todoDone ]
+    (/=) a b = (a == b) == false
 
 -- | Marshalls ToDoItem to JSON
 instance todoItemToJSON :: ToJSON ToDoItem where
@@ -38,3 +47,10 @@ instance todoItemFromJSON :: FromJSON ToDoItem where
 
 -- | Type covering an entire To Do List
 newtype ToDoList = ToDoList { _todoItems :: [ToDoItem] }
+
+-- | Marshalls ToDoList from JSON
+instance todoListFromJSON :: FromJSON ToDoList where
+    parseJSON (JObject o) = do
+        list <- o .: "_todoItems"
+        return $ ToDoList { _todoItems: list }
+

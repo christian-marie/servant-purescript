@@ -221,7 +221,7 @@ writePS fp = writeFile fp . generatePSModule defaultSettings "App.Ajax"
 -- | Download and get Bower dependencies
 bower :: IO [FilePath]
 bower = do
-    void . system $ "cd " <> appPath <> " && bower install"
+    void . system $ "cd " <> appPath <> " && bower prune && bower install"
     (matches, _) <- globDir [compile $ appPath </> "bower_components/*/src/**/*.purs"] "."
     return $ head matches
 
@@ -241,8 +241,8 @@ psc dep mod dest = do
 -- | App files
 appFiles :: FilePath -> IO [FilePath]
 appFiles src = do
-    (matches, _) <- globDir [compile "**.purs"] src
-    return $ head matches
+    (matches, _) <- globDir [compile "**.purs", compile "**/*.purs"] src
+    return . nub . concat $ matches
 
 -- | Build and run everything
 main :: IO ()
@@ -257,7 +257,8 @@ main = do
     -- Get dependencies and compile PureScript
     sourceFiles <- bower
     af <- appFiles (appPath </> "App")
-    psc sourceFiles (af <> [ajaxPS, appPS]) appJS
+    df <- appFiles (appPath </> "Data")
+    psc sourceFiles (af <> df <> [ajaxPS, appPS]) appJS
 
     -- Initialise state and run app
     newList >>= flip runServer 8080
