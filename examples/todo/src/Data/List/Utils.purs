@@ -23,13 +23,13 @@ replace old new l = join new <<< split old $ l
 
 split :: forall a. (Eq a) => [a] -> [a] -> [[a]]
 split _ [] = []
-split delim str = first <> second
+split delim str = first : second
   where
-    first = [fst parts]
+    first = fst parts
     second = case snd parts of
         [] -> []
         x  -> if x == delim
-                then []
+                then [] : []
                 else split delim (A.drop (A.length delim) x)
     parts = breakList (startswith delim) str
 

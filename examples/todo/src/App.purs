@@ -1,10 +1,12 @@
 module App where
 
+import Control.Monad
 import Control.Monad.Eff
 import qualified Data.Array as Arr
 import Data.JSON
 import Data.List
 import Data.Maybe
+import Data.Maybe.Unsafe
 import Data.Monoid
 import Data.Tuple
 import Data.Tuple.Nested
@@ -45,8 +47,19 @@ foreign import getKeyCode
   \  return e.keyCode;\
   \}" :: T.KeyboardEvent -> Number
 
+-- | Stringifies a JSON-friendly object to JSON
+foreign import stringify
+"""
+function stringify(o) {
+  return JSON.stringify(o);
+}
+""" :: forall a. a -> String
+
+-- | JSON stringify something we got
+
 -- * Define actions
 
+-- | Actions that can affect the page state and layout
 data Action = GetList -- ^ Just get the latest list
             | DoNothing -- ^ Just sit and do nothing
             | UpdateText (Maybe UUID) String -- ^ Update a todo item's text
@@ -54,28 +67,18 @@ data Action = GetList -- ^ Just get the latest list
 
 -- * Define state
 
+-- | State only contains the current ToDoList
 type State = {
     todoList :: ToDoList
 }
 
-blankToDoList :: ToDoList
-blankToDoList = ToDoList { _todoItems: [] }
-
+-- | Initial state is an empty ToDoList with one blank ToDoItem to fill in
 initialState :: State
 initialState = { todoList: addNewItem blankToDoList }
 
-newToDoItem :: ToDoItem
-newToDoItem = ToDoItem { _todoIdent: Nothing, _todoText: "", _todoDone: false }
-
-addNewItem :: ToDoList -> ToDoList
-addNewItem (ToDoList l) = ToDoList { _todoItems: l._todoItems <> [newToDoItem] }
-
-getItemByUuid :: ToDoList -> Maybe UUID -> Maybe ToDoItem
-getItemByUuid (ToDoList l) i = case Arr.filter isThisIt l._todoItems of
-    (it:_) -> Just it
-    _      -> Nothing
-  where
-    isThisIt (ToDoItem it) = it._todoIdent == i
+-- | Set todo list
+setTodoList :: ToDoList -> T.Action _ State Unit
+setTodoList l = T.setState { todoList: l }
 
 -- * Handle actions
 
@@ -88,22 +91,8 @@ performAction _ (SubmitItem x)   = sendItem x
 
 -- | Update state for a given item
 updateItemText :: Maybe UUID -> String -> T.Action _ State Unit
-updateItemText u t = do
-    let aaa = fprintUnsafe [show u, t]
-    T.modifyState (\o -> do
-        let qqq = fprintUnsafe o.todoList
-        let qqr = fprintUnsafe $ updateListItemText o.todoList u t
-        { todoList: updateListItemText o.todoList u t })
-
--- | Update ToDoList item text
-updateListItemText :: ToDoList -> Maybe UUID -> String -> ToDoList
-updateListItemText (ToDoList l) u t = ToDoList { _todoItems: newToDoItems l }
-  where
-    newToDoItems l =
-        case getItemByUuid (ToDoList l) i of
-            Just item -> replace [item] [new item] l._todoItems
-            _         -> l._todoItems <> [new newToDoItem]
-    new (ToDoItem it) = ToDoItem { _todoIdent: i, _todoText: t, _todoDone: it._todoDone }
+updateItemText u t = T.modifyState (\o ->
+    { todoList: updateListItemText o.todoList u t })
 
 -- | Modify current AJAX method so that it only passes through the success ResponseData to a callback.
 -- This is needed to make it work with T.async.
@@ -111,58 +100,56 @@ responseOnly
     :: forall eff. 
        (SuccessFn eff -> FailureFn eff -> Eff (xhr :: XHREff | eff) Unit)
     -> ((ResponseData -> Eff (xhr :: XHREff | eff) Unit) -> Eff (xhr :: XHREff | eff) Unit)
-responseOnly orig = (flip orig (\_ _ d -> return unit)) <<< (\fn a _ _ -> fn a)
+responseOnly orig = flip orig err <<< success
+  where
+    success fn a b c = fn $ stringify a
+    err a b c        = return unit
 
 -- | Get current todo list
 getList :: T.Action _ State Unit
 getList = do
-    r <- T.async <<< responseOnly $ getitems
-    case decode r :: Maybe ToDoList of
-        Just l -> T.modifyState (\o ->
-            { todoList: addNewItem l })
-        _      -> T.modifyState (\o ->
-            { todoList : addNewItem blankToDoList })
+    r <- T.async (responseOnly getitems)
+    setTodoList (addNewItem <<< result $ r)
 
 -- | Send a ToDoItem to the server
 sendItem :: ToDoItem -> T.Action _ State Unit
-sendItem (ToDoItem i) =
-    case i._todoIdent of
-        Just ident -> do
-            r <- T.async <<< responseOnly $ putitemsWithUuid ident (encode $ ToDoItem i)
-            case decode r :: Maybe ToDoList of
-                Just l -> T.modifyState (\o ->
-                    { todoList: addNewItem l })
-                _      -> T.modifyState (\o ->
-                    { todoList : addNewItem blankToDoList })
-        _ -> do
-            r <- T.async <<< responseOnly $ postitems (encode $ ToDoItem i)
-            case decode r :: Maybe ToDoList of
-                Just l -> T.modifyState (\o ->
-                    { todoList: addNewItem l })
-                _      -> T.modifyState (\o ->
-                    { todoList : addNewItem blankToDoList })
+sendItem (ToDoItem i) = do
+    r <- T.async (responseOnly <<< sender i._todoIdent <<< encode $ ToDoItem i)
+    setTodoList (addNewItem <<< result $ r)
+  where
+    sender (Just ident) = putitemsWithUuid ident
+    sender _            = postitems
+
+-- | Decode result and return appropriate ToDoList
+result :: String -> ToDoList
+result = fromMaybe blankToDoList <<< decode
 
 -- * DOM events
 
 -- | onchange
-handleTodoChange :: T.FormEvent -> Action
-handleTodoChange e = UpdateText (strToIdent $ getToDoItemIdent e) (getValue e)
+handleTodoTextChange :: T.FormEvent -> Action
+handleTodoTextChange e = UpdateText (strToIdent $ getToDoItemIdent e) (getValue e)
   where
     todoItem = getToDoItemFromUI (getToDoItemIdent e)
 
 -- | onkeyup
-handleTodoKeyUp :: T.KeyboardEvent -> Action
-handleTodoKeyUp e = case getKeyCode e of
-    13 -> SubmitItem todoItem
+handleTodoTextKeyUp :: T.KeyboardEvent -> Action
+handleTodoTextKeyUp e = case getKeyCode e of
+    13 -> case getValue e of
+        "" -> DoNothing
+        _  -> SubmitItem $
+            getToDoItemFromUI (getToDoItemIdent e)
     _  -> DoNothing
-  where
-    todoItem = getToDoItemFromUI (getToDoItemIdent e)
 
 -- | onblur
-handleTodoBlur :: T.FocusEvent -> Action
-handleTodoBlur e = SubmitItem todoItem
-  where
-    todoItem = getToDoItemFromUI (getToDoItemIdent e)
+handleTodoTextBlur :: T.FocusEvent -> Action
+handleTodoTextBlur e = SubmitItem $
+    getToDoItemFromUI (getToDoItemIdent e)
+
+-- | Checkbox click
+handleTodoCheckboxChange :: T.MouseEvent -> Action
+handleTodoCheckboxChange e = SubmitItem $
+    getToDoItemFromUI (getToDoItemIdent e)
 
 -- | Get entire ToDoItem from user interface properties
 getToDoItemFromUI :: String -> ToDoItem
@@ -176,11 +163,13 @@ strToIdent :: String -> Maybe UUID
 strToIdent "" = Nothing
 strToIdent x  = Just x
 
+-- | Get value from a DOM element
 foreign import getValue 
   "function getValue(e) {\
   \  return e.target.value;\
   \}" :: forall event. event -> String
 
+-- | Get data-todoitem attribute from a DOM element
 foreign import getToDoItemIdent
 """
 function getToDoItemIdent (e) {
@@ -191,6 +180,7 @@ function getToDoItemIdent (e) {
 }
 """ :: forall event. event -> String
 
+-- | Get text value from a todoitem DOM element
 foreign import getToDoItemText
 """
 function getToDoItemText (ident) {
@@ -202,6 +192,7 @@ function getToDoItemText (ident) {
 }
 """ :: String -> String
 
+-- | Get checkbox value from a todoitem DOM element
 foreign import getToDoItemDone
 """
 function getToDoItemDone (ident) {
@@ -217,8 +208,13 @@ function getToDoItemDone (ident) {
 
 -- | Render user interface HTML
 render :: T.Render State _ Action
-render ctx s _ = T.div [ A.className "app-container" ] [ T.ul' current ]
+render ctx s _ = do
+    container [ T.ul' current
+              , T.p' [ remaining ] ]
   where
+    container = T.div [ A.className "app-container" ]
+    remaining = T.text $ (show $ inState false s.todoList) <> " remaining"
+
     current  = itemList s.todoList
     itemList (ToDoList l) = itemRow <$> l._todoItems
     itemRow :: ToDoItem -> T.Html _
@@ -226,12 +222,13 @@ render ctx s _ = T.div [ A.className "app-container" ] [ T.ul' current ]
         [ T.input [ A._type "text"
                   , A.className "item-row"
                   , A.value i._todoText
-                  , T.onChange ctx handleTodoChange
-                  , T.onKeyUp  ctx handleTodoKeyUp
-                  , T.onBlur   ctx handleTodoBlur
+                  , T.onChange ctx handleTodoTextChange
+                  , T.onKeyUp  ctx handleTodoTextKeyUp
+                  , T.onBlur   ctx handleTodoTextBlur
                   , _dataToDoItem $ ToDoItem i ] []
         , T.input ([ A._type "checkbox"
-                   , _dataToDoItem $ ToDoItem i ] <> checkedParam) []
+                   , _dataToDoItem $ ToDoItem i
+                   , T.onClick ctx handleTodoCheckboxChange ] <> checkedParam) []
         ]
       where
         checkedParam = if i._todoDone

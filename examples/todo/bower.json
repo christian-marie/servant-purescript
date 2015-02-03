@@ -1,6 +1,9 @@
 {
   "name": "servant-purescript-todo",
   "version": "0.0.0",
+  "moduleType": [
+    "node"
+  ],
   "authors": [
     "Anchor Engineering <engineering@anchor.net.au>"
   ],
@@ -16,7 +19,8 @@
   "ignore": [
     "**/.*",
     "node_modules",
-    "bower_components"
+    "bower_components",
+    "output"    
   ],
   "dependencies": {
     "purescript-foreign":  "~0.3.0",
@@ -26,6 +30,7 @@
     "purescript-debug-foreign": "~0.0.4",
     "purescript-lens": "~0.5.0",
     "purescript-tuples": "~0.2.3",
+    "purescript-test-unit": "~1.1.5",
     "purescript-lists": "~0.5.0"
   }
 }
