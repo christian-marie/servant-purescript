@@ -5,3 +5,7 @@ cabal.sandbox.config
 */**/*.swo
 examples/*/bower_components/**/*
 examples/*/output/**/*
+
+# Auto-generated
+examples/todo/src/App/App.Ajax.purs
+
