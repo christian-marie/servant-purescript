@@ -9,4 +9,5 @@ examples/*/output/**/*
 # Auto-generated
 examples/counter/temp/api.purs
 examples/todo/src/App/App.Ajax.purs
+examples/todo/www/app.js
 
