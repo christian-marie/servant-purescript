@@ -4036,52 +4036,51 @@ PS.App = (function () {
     "use strict";
     var Data_Function = PS.Data_Function;
     var Data_Maybe = PS.Data_Maybe;
+    var Data_Maybe_Unsafe = PS.Data_Maybe_Unsafe;
     var Prelude = PS.Prelude;
     var Control_Monad_Eff = PS.Control_Monad_Eff;
     var Data_Foreign = PS.Data_Foreign;
     var Data_Monoid = PS.Data_Monoid;
     
-function ajaxImpl(url, method, headers, body, isJust, onSuccess, onError){
+function ajaxImpl(url, method, headers, body, isJust, fromJust, onSuccess, onError){
 return function(){
+var capitalise = function(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+var filterHeaders = function(obj) {
+var result = {};
+for(var i in obj) if(obj.hasOwnProperty(i)) result[capitalise(i.replace(/_/, '-'))] = obj[i];
+return result;
+};
 $.ajax({
   url: url
 , type: method
-, success: onSuccess
-, error: onError
-, headers: headers
-, data: (isJust(body) ? JSON.stringify(body) : null)
+, success: function(d, s, x){ onSuccess(d)(s)(x)(); }
+, error: function(x, s, d){ onError(x)(s)(d)(); }
+, headers: filterHeaders(headers)
+, data: (isJust(body) ? fromJust(body) : null)
 });
 return {};
 };
 }
 ;
-    var PostcounterHeaders = (function () {
-        function PostcounterHeaders() {
-
-        };
-        PostcounterHeaders.value = new PostcounterHeaders();
-        return PostcounterHeaders;
-    })();
-    var GetcounterHeaders = (function () {
-        function GetcounterHeaders() {
-
-        };
-        GetcounterHeaders.value = new GetcounterHeaders();
-        return GetcounterHeaders;
-    })();
     var postcounter = function (onSuccess) {
         return function (onError) {
-            return ajaxImpl("/counter", "POST", PostcounterHeaders.value, Data_Maybe.Nothing.value, Data_Maybe.isJust, onSuccess, onError);
+            var headers = {
+                content_Type: "application/json", 
+                accept: "application/json"
+            };
+            return ajaxImpl("/counter", "POST", headers, Data_Maybe.Nothing.value, Data_Maybe.isJust, Data_Maybe_Unsafe.fromJust, onSuccess, onError);
         };
     };
     var getcounter = function (onSuccess) {
         return function (onError) {
-            return ajaxImpl("/counter", "GET", GetcounterHeaders.value, Data_Maybe.Nothing.value, Data_Maybe.isJust, onSuccess, onError);
+            var headers = {
+                content_Type: "application/json", 
+                accept: "application/json"
+            };
+            return ajaxImpl("/counter", "GET", headers, Data_Maybe.Nothing.value, Data_Maybe.isJust, Data_Maybe_Unsafe.fromJust, onSuccess, onError);
         };
     };
     return {
-        GetcounterHeaders: GetcounterHeaders, 
-        PostcounterHeaders: PostcounterHeaders, 
         ajaxImpl: ajaxImpl, 
         getcounter: getcounter, 
         postcounter: postcounter, 
