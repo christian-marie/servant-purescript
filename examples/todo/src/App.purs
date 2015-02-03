@@ -64,21 +64,26 @@ data Action = GetList -- ^ Just get the latest list
             | DoNothing -- ^ Just sit and do nothing
             | UpdateText (Maybe UUID) String -- ^ Update a todo item's text
             | SubmitItem ToDoItem -- ^ Submit a new or updated item
+            | ChangeFilter (Maybe Boolean) -- ^ Change current filter
 
 -- * Define state
 
 -- | State only contains the current ToDoList
 type State = {
-    todoList :: ToDoList
+    todoList :: ToDoList,
+    filter   :: Maybe Boolean
 }
 
 -- | Initial state is an empty ToDoList with one blank ToDoItem to fill in
 initialState :: State
-initialState = { todoList: addNewItem blankToDoList }
+initialState = {
+    todoList: addNewItem blankToDoList,
+    filter: Nothing
+}
 
 -- | Set todo list
 setTodoList :: ToDoList -> T.Action _ State Unit
-setTodoList l = T.setState { todoList: l }
+setTodoList l = T.modifyState (\o -> { todoList: l, filter: o.filter })
 
 -- * Handle actions
 
@@ -86,13 +91,14 @@ setTodoList l = T.setState { todoList: l }
 performAction :: T.PerformAction _ Action (T.Action _ State)
 performAction _ DoNothing        = return unit
 performAction _ GetList          = getList
+performAction _ (ChangeFilter f) = T.modifyState (\o -> { todoList: o.todoList, filter: f })
 performAction _ (UpdateText i t) = updateItemText i t
 performAction _ (SubmitItem x)   = sendItem x
 
 -- | Update state for a given item
 updateItemText :: Maybe UUID -> String -> T.Action _ State Unit
 updateItemText u t = T.modifyState (\o ->
-    { todoList: updateListItemText o.todoList u t })
+    { todoList: updateListItemText o.todoList u t, filter: o.filter })
 
 -- | Modify current AJAX method so that it only passes through the success ResponseData to a callback.
 -- This is needed to make it work with T.async.
@@ -150,6 +156,10 @@ handleTodoTextBlur e = SubmitItem $
 handleTodoCheckboxChange :: T.MouseEvent -> Action
 handleTodoCheckboxChange e = SubmitItem $
     getToDoItemFromUI (getToDoItemIdent e)
+
+-- | Handle filter change
+handleFilter :: Action -> T.MouseEvent -> Action
+handleFilter a _ = a
 
 -- | Get entire ToDoItem from user interface properties
 getToDoItemFromUI :: String -> ToDoItem
@@ -210,12 +220,23 @@ function getToDoItemDone (ident) {
 render :: T.Render State _ Action
 render ctx s _ = do
     container [ T.ul' current
-              , T.p' [ remaining ] ]
+              , T.p' [ remaining ]
+              , filters ]
   where
     container = T.div [ A.className "app-container" ]
     remaining = T.text $ (show $ inState false s.todoList) <> " remaining"
+    filters   = T.p' [ T.a [ A.href "#all"
+                           , T.onClick ctx (handleFilter $ ChangeFilter Nothing) ] [ T.text "All" ]
+                     , T.text " | "
+                     , T.a [ A.href "#to-do"
+                           , T.onClick ctx (handleFilter $ ChangeFilter (Just false)) ] [ T.text "To Do" ]
+                     , T.text " | "
+                     , T.a [ A.href "#complete"
+                           , T.onClick ctx (handleFilter $ ChangeFilter (Just true)) ] [ T.text "Complete" ] ]
 
-    current  = itemList s.todoList
+    current  = itemList $ if isJust s.filter
+        then filterState (fromJust s.filter) s.todoList
+        else s.todoList
     itemList (ToDoList l) = itemRow <$> l._todoItems
     itemRow :: ToDoItem -> T.Html _
     itemRow (ToDoItem i) = T.li' $

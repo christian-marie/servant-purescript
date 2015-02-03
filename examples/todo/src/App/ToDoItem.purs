@@ -99,6 +99,12 @@ getItemByUuid (ToDoList l) i = case Arr.filter isThisIt l._todoItems of
   where
     isThisIt (ToDoItem it) = it._todoIdent == i
 
+-- | Filter to a given state
+filterState :: Boolean -> ToDoList -> ToDoList
+filterState state (ToDoList l) = ToDoList { _todoItems: Arr.filter inStateF l._todoItems }
+  where
+    inStateF (ToDoItem i) = isJust i._todoIdent && i._todoDone == state
+
 -- | Number of items in a given state
 inState :: Boolean -> ToDoList -> Number
 inState state (ToDoList l) = Arr.length $
