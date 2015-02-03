@@ -7,5 +7,6 @@ examples/*/bower_components/**/*
 examples/*/output/**/*
 
 # Auto-generated
+examples/counter/temp/api.purs
 examples/todo/src/App/App.Ajax.purs
 
