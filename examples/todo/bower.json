@@ -1,0 +1,37 @@
+{
+  "name": "servant-purescript-todo",
+  "version": "0.0.0",
+  "moduleType": [
+    "node"
+  ],
+  "authors": [
+    "Anchor Engineering <engineering@anchor.net.au>"
+  ],
+  "description": "To Do List Example for servant-purescript",
+  "keywords": [
+    "Haskell",
+    "Servant",
+    "Purescript"
+  ],
+  "license": "BSD3",
+  "homepage": "https://www.anchor.com.au",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "output"    
+  ],
+  "dependencies": {
+    "purescript-foreign":  "~0.3.0",
+    "purescript-thermite": "~0.5.1",
+    "purescript-json": "~0.4.7",
+    "purescript-transformers": "~0.4.0",
+    "purescript-debug-foreign": "~0.0.4",
+    "purescript-lens": "~0.5.0",
+    "purescript-tuples": "~0.2.3",
+    "purescript-test-unit": "~1.1.5",
+    "purescript-lists": "~0.5.0"
+  }
+}
+

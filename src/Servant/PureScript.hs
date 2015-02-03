@@ -1,5 +1,5 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell   #-}
 
 module Servant.PureScript (
   jquery,
@@ -10,10 +10,11 @@ module Servant.PureScript (
   defaultSettings
 ) where
 
-import Control.Lens
-import Data.List
-import Data.Monoid
-import Servant.JQuery
+import           Control.Lens
+import           Data.Char
+import           Data.List
+import           Data.Monoid
+import           Servant.JQuery
 
 -- | PureScript rendering settings
 data PSSettings = PSSettings {
@@ -29,84 +30,181 @@ generatePSModule
     -> String -- ^ Name of PureScript module
     -> [AjaxReq] -- ^ List of AJAX requests to render in module
     -> String -- ^ Rendered PureScript module
-generatePSModule settings mname reqs = "module " <> mname <> " where"
-    <> "\n"
-    <> "\n" <> "import Data.Foreign"
-    <> "\n" <> "import Data.Function"
-    <> "\n"
-    <> "\n" <> intercalate "\n" (map (generatePS settings) reqs)
+generatePSModule settings mname reqs = unlines
+        [ "module " <> mname <> " where"
+        , ""
+        , "import Control.Monad.Eff"
+        , "import Data.Foreign"
+        , "import Data.Function"
+        , "import Data.Maybe"
+        , "import Data.Maybe.Unsafe (fromJust)"
+        , "import Data.Monoid"
+        , ""
+        , "foreign import encodeURIComponent :: String -> String"
+        , ""
+        , xhrType
+        , commonAliases
+        , funcTypes
+        , ""
+        , intercalate "\n" (fmap (generatePS settings) reqs)
+        , ""
+        , ajaxImpl
+        ]
 
 -- | Generate a single PureScript function for an AJAX request.
+-- To prevent conflicts, generates a unique function name for every available
+-- function name and set of captures.
 generatePS
     :: PSSettings -- ^ PureScript rendering settings
     -> AjaxReq -- ^ AJAX request to render
     -> String -- ^ Rendered PureScript
-generatePS settings req = "\n"
-    <> "foreign import " <> fname
-    <> "\n" <> "\"\"\""
-    <> "\n" <> jsFun
-    <> "\n" <> "\"\"\" :: " <> typeDec
-    <> "\n"
+generatePS settings req = concat
+    [ headerType
+    , "\n\n"
+    , unsafeAjaxRequest
+    ]
   where
-    args = captures
-        <> map (view argName) queryParams
-        <> body
-        <> map (toValidFunctionName . (<>) "header" . headerArgName) hs
-        <> ["onSuccess", "onError"]
-    
-    captures = map captureArg . filter isCapture $ req ^. reqUrl.path
-    
-    hs = req ^. reqHeaders
-    
-    queryParams = req ^.. reqUrl.queryStr.traverse
-    
-    body = ["body" | req ^. reqBody]
-    
-    fname = req ^. funcName
-    
-    method = req ^. reqMethod
-    
-    url = settings ^. baseURL <> urlArgs <> queryArgs
-    
-    urlArgs = jsSegments $ req ^.. reqUrl.path.traverse
-    
-    queryArgs = if null queryParams then "" else " + \"?" <> jsParams queryParams <> "\""
-    
-    dataBody = if req ^. reqBody then "data: JSON.stringify(body)," else ""
-    
-    renderedReqHeaders =
-        if null hs
-            then ""
-            else "headers: {" <> headersStr <> "},"
-    
-    headersStr = intercalate "," (map headerStr hs)
-    headerStr :: HeaderArg -> String
-    headerStr h = "\"" <> headerArgName h <> "\": " <> show h
-    
-    typeDec = "forall a b eff. Fn" <> show (length args) <> " Foreign "
-        <> unwords (map toTypeDec args) <> " (eff Unit)"
-    
-    toTypeDec "onSuccess" = "(b)"
-    toTypeDec "onError"   = "(b)"
-    toTypeDec _           = "(a)"
-    
-    jsFun = "function " <> fname <> " (" <> intercalate "," args <> ") {"
-        <> "\n" <> "return function(){"
-        <> "\n" <> jsFunInternal
-        <> "\n" <> "};"
-        <> "\n" <> "}"
+    args = suppliedArgs <> ["onSuccess", "onError"]
 
-    jsFunInternal = "$.ajax({"
-        <> "\n" <> "url: \"" <> url <> "\","
-        <> "\n" <> "type: \"" <> method <> "\","
-        <> "\n" <> "success: onSuccess,"
-        <> "\n" <> "error: onError,"
-        <> "\n" <> renderedReqHeaders
-        <> "\n" <> dataBody
-        <> "\n" <> "});"
+    suppliedArgs = captures <> queryArgs <> body <> headerArgs
+
+    captures = fmap captureArg . filter isCapture $ req ^. reqUrl.path
+    queryArgs  = fmap (view argName) queryParams
+    headerArgs = fmap (toValidFunctionName . (<>) "header" . headerArgName) $ req ^. reqHeaders
+
+    fname = req ^. funcName
+         <> if null captures then "" else "With"
+         <> intercalate "And" (fmap capitalise captures)
+
+    queryParams = req ^.. reqUrl.queryStr.traverse
+
+    body = ["body" | req ^. reqBody]
+
+    htname = capitalise (fname <> "Headers")
+
+    headerType = concat
+        ([ "type "
+         , htname
+         , " = "
+         ] <> hfields)
+    hfields = [" { ", intercalate ", " hfieldNames, " }"]
+    hfieldNames = fmap toHField (htDefaults <> headerArgs)
+    htDefaults = ["content_Type", "accept"]
+    toHField h = h <> " :: String"
+
+    unsafeAjaxRequest = unlines
+        [ typeSig
+        , fname <> " " <> argString <> " ="
+        , "    runFn8 ajaxImpl url method headers b isJust fromJust onSuccess onError"
+        , "  where"
+        , "    url = " <> urlString
+        , "    method = \"" <> req ^. reqMethod <> "\""
+        , ("    headers = " <> " { "
+            <> (intercalate ", " . map wrapDefault $ htDefaults)
+            <> (if null headerArgs then " " else ", ")
+            <> (intercalate ", " . map wrapHeader $ headerArgs) <> " }")
+        , "    b = " <> bodyString
+        ]
+      where
+        typeSig = concat
+            [ fname
+            , " :: forall eff. "
+            , intercalate " -> " $ fmap (const "String") suppliedArgs
+            , argLink
+            , "(SuccessFn eff) -> (FailureFn eff) -> (Eff (xhr :: XHREff | eff) Unit)"
+            ]
+        argLink = if null suppliedArgs then "" else " -> "
+        argString = unwords args
+        urlString = concat
+            [ "\""
+            , settings ^. baseURL
+            , "/"
+            , psPathSegments $ req ^.. reqUrl.path.traverse
+            , "\""
+            , if null queryParams then "" else "\"?\" <> " <> psParams queryParams
+            ]
+        bodyString = if req ^. reqBody then "(Just body)" else "Nothing"
+        wrapDefault h = h <> ": \"application/json\""
+        wrapHeader h  = h <> ": " <> h
+
+ajaxImpl :: String
+ajaxImpl = unlines
+    [ "foreign import ajaxImpl"
+    , "\"\"\""
+    , "function ajaxImpl(url, method, headers, body, isJust, fromJust, onSuccess, onError){"
+    , "return function(){"
+    , "var capitalise = function(s) { return s.charAt(0).toUpperCase() + s.slice(1); }"
+    , "var filterHeaders = function(obj) {"
+    , "var result = {};"
+    , "for(var i in obj) if(obj.hasOwnProperty(i)) result[capitalise(i.replace(/_/, '-'))] = obj[i];"
+    , "return result;"
+    , "};"
+    , "$.ajax({"
+    , "  url: url"
+    , ", type: method"
+    , ", success: function(d, s, x){ onSuccess(d)(s)(x)(); }"
+    , ", error: function(x, s, d){ onError(x)(s)(d)(); }"
+    , ", headers: filterHeaders(headers)"
+    , ", data: (isJust(body) ? fromJust(body) : null)"
+    , "});"
+    , "return {};"
+    , "};"
+    , "}"
+    , "\"\"\" :: forall eff h. Fn8 URL Method h (Maybe Body) (Maybe Body -> Boolean) (Maybe Body -> Body) (SuccessFn eff) (FailureFn eff) (Eff (xhr :: XHREff | eff) Unit)"
+    ]
+
+-- | Type aliases for common things
+commonAliases :: String
+commonAliases = unlines
+    [ "type URL = String"
+    , "type Method = String"
+    , "type Body = String"
+    , "type Status = String"
+    , "type ResponseData = String"
+    ]
+
+-- | Type for XHR
+xhrType :: String
+xhrType = unlines
+    [ "foreign import data XHR :: *"
+    , "foreign import data XHREff :: !"
+    ]
+
+-- | Type aliases for success & failure functions
+funcTypes :: String
+funcTypes = unlines
+    [ "type SuccessFn eff = (ResponseData -> Status -> XHR -> (Eff (xhr :: XHREff | eff) Unit))"
+    , "type FailureFn eff = (XHR -> Status -> ResponseData -> (Eff (xhr :: XHREff | eff) Unit))"
+    ]
 
 -- | Default PureScript settings: specifies an empty base URL
 defaultSettings :: PSSettings
 defaultSettings = PSSettings ""
 
+-- | Capitalise a string for use in PureScript variable name
+capitalise :: String -> String
+capitalise [] = []
+capitalise (x:xs) = [toUpper x] <> xs
+
+-- | Turn a list of path segments into a URL string
+psPathSegments :: [Segment] -> String
+psPathSegments = intercalate "/" . fmap psSegmentToStr
+
+-- | Turn an individual path segment into a PureScript variable handler
+psSegmentToStr :: Segment -> String
+psSegmentToStr (Static s) = s
+psSegmentToStr (Cap s)    = "\" <> encodeURIComponent " <> s <> " <> \""
+
+-- | Turn a list of query string params into a URL string
+psParams :: [QueryArg] -> String
+psParams = intercalate " <> \"&\" <> " . fmap psParamToStr
+
+-- | Turn an individual query string param into a PureScript variable handler
+psParamToStr :: QueryArg -> String
+psParamToStr qarg =
+  case qarg ^. argType of
+    Normal -> "\"" <> name <> "=\" <> encodeURIComponent " <> name
+    Flag   -> "\"" <> name <> "=\""
+    List   -> "\"" <> name <> "[]=\" <> encodeURIComponent " <> name
+  where name = qarg ^. argName
 

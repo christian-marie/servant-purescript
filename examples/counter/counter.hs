@@ -1,23 +1,23 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TypeOperators              #-}
 
-import Control.Concurrent.STM
-import Control.Monad
-import Control.Monad.IO.Class
-import Data.Aeson
-import Data.List
-import Data.Monoid
-import Data.Proxy
-import GHC.Generics
-import Network.Wai.Handler.Warp (run)
-import Servant
-import Servant.JQuery
-import Servant.PureScript
-import System.FilePath
-import System.FilePath.Glob
-import System.Process
+import           Control.Concurrent.STM
+import           Control.Monad
+import           Control.Monad.IO.Class
+import           Data.Aeson
+import           Data.List
+import           Data.Monoid
+import           Data.Proxy
+import           GHC.Generics
+import           Network.Wai.Handler.Warp (run)
+import           Servant
+import           Servant.JQuery
+import           Servant.PureScript
+import           System.FilePath
+import           System.FilePath.Glob
+import           System.Process
 
 -- * A simple Counter data type
 newtype Counter = Counter { value :: Int }
@@ -45,7 +45,7 @@ currentValue counter = liftIO $ readTVarIO counter
 -- * Our API type
 type TestApi = "counter" :> Post Counter -- endpoint for increasing the counter
           :<|> "counter" :> Get  Counter -- endpoint to get the current value
-          :<|> Raw                       -- used for serving static files 
+          :<|> Raw                       -- used for serving static files
 
 testApi :: Proxy TestApi
 testApi = Proxy
@@ -54,11 +54,11 @@ testApi = Proxy
 
 -- where our static files reside
 www :: FilePath
-www = "examples/www"
+www = "examples/counter/www"
 
 -- where temporary files reside
 tmp :: FilePath
-tmp = "examples/temp"
+tmp = "examples/counter/temp"
 
 -- defining handlers
 server :: TVar Counter -> Server TestApi
@@ -84,16 +84,16 @@ main = do
     -- Write the PureScript module
     writePS (tmp </> "api.purs") [ incCounterJS
                                  , currentValueJS
-                                 ] 
+                                 ]
 
     -- Run bower to import dependencies
-    _ <- system "cd examples && bower install"
-    
-    (matches, _) <- globDir [compile "examples/bower_components/**/*.purs"] "."
+    _ <- system "cd examples/counter && bower install"
+
+    (matches, _) <- globDir [compile "examples/counter/bower_components/**/*.purs"] "."
 
     -- Compile PureScript to JS
-    let cmd = "psc -module=App --main=App "
-            <> (intercalate " " $ head matches)
+    let cmd = "psc "
+            <> unwords (head matches)
             <> " "
             <> (tmp </> "api.purs")
             <> " > "
@@ -102,7 +102,7 @@ main = do
     putStrLn cmd
 
     _ <- system cmd
-    
+
     -- setup a shared counter
     cnt <- newCounter
 
