@@ -197,7 +197,7 @@ psSegmentToStr (Cap s)    = "\" <> encodeURIComponent " <> s <> " <> \""
 
 -- | Turn a list of query string params into a URL string
 psParams :: [QueryArg] -> String
-psParams qa = " <> intercalate \"&\" [" <> intercalate ", " (fmap psParamToStr qa) <> "]"
+psParams qa = "intercalate \"&\" [" <> intercalate ", " (fmap psParamToStr qa) <> "]"
 
 -- | Turn an individual query string param into a PureScript variable handler
 psParamToStr :: QueryArg -> String
