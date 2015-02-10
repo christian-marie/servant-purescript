@@ -36,6 +36,7 @@ generatePSModule settings mname reqs = unlines
         , "import Control.Monad.Eff"
         , "import Data.Foreign"
         , "import Data.Function"
+        , "import Data.List"
         , "import Data.Maybe"
         , "import Data.Maybe.Unsafe (fromJust)"
         , "import Data.Monoid"
@@ -99,10 +100,10 @@ generatePS settings req = concat
         , "  where"
         , "    url = " <> urlString
         , "    method = \"" <> req ^. reqMethod <> "\""
-        , ("    headers = " <> " { "
-            <> (intercalate ", " . map wrapDefault $ htDefaults)
+        , "    headers = " <> " { "
+            <> intercalate ", " (fmap wrapDefault htDefaults)
             <> (if null headerArgs then " " else ", ")
-            <> (intercalate ", " . map wrapHeader $ headerArgs) <> " }")
+            <> intercalate ", " (fmap wrapHeader headerArgs) <> " }"
         , "    b = " <> bodyString
         ]
       where
@@ -120,8 +121,7 @@ generatePS settings req = concat
             , settings ^. baseURL
             , "/"
             , psPathSegments $ req ^.. reqUrl.path.traverse
-            , "\""
-            , if null queryParams then "" else "\"?\" <> " <> psParams queryParams
+            , if null queryParams then "\"" else "?\" <> " <> psParams queryParams
             ]
         bodyString = if req ^. reqBody then "(Just body)" else "Nothing"
         wrapDefault h = h <> ": \"application/json\""
@@ -197,7 +197,7 @@ psSegmentToStr (Cap s)    = "\" <> encodeURIComponent " <> s <> " <> \""
 
 -- | Turn a list of query string params into a URL string
 psParams :: [QueryArg] -> String
-psParams = intercalate " <> \"&\" <> " . fmap psParamToStr
+psParams qa = " <> intercalate \"&\" [" <> intercalate ", " (fmap psParamToStr qa) <> "]"
 
 -- | Turn an individual query string param into a PureScript variable handler
 psParamToStr :: QueryArg -> String

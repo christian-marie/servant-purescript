@@ -1,5 +1,5 @@
 name:                servant-purescript
-version:             0.0.0
+version:             0.0.1
 synopsis:            Automatically derive purescript functions to query servant webservices
 description:
   Automatically derive purescript functions to query servant webservices.
