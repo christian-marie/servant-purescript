@@ -15,6 +15,7 @@ import           Control.Lens
 import           Data.Char
 import           Data.List
 import           Data.Monoid
+import qualified Data.Text      as T
 import           Servant.JQuery
 
 -- | PureScript rendering settings
@@ -68,11 +69,11 @@ generatePS settings req = concat
   where
     args = suppliedArgs <> ["onSuccess", "onError"]
 
-    suppliedArgs = captures <> queryArgs <> body <> fmap snd headerArgTuples
+    suppliedArgs = captures <> queryArgs <> body <> fmap (fst . snd) headerArgs
 
     captures = fmap captureArg . filter isCapture $ req ^. reqUrl.path
     queryArgs  = fmap (view argName) queryParams
-    headerArgTuples = fmap (decapitalise . headerArgName &&& toValidFunctionName . (<>) "header" . headerArgName) (req ^. reqHeaders)
+    headerArgs = fmap (decapitalise . headerArgName &&& toValidFunctionName . (<>) "header" . headerArgName &&& id) (req ^. reqHeaders)
 
     fname = req ^. funcName
          <> if null captures then "" else "With"
@@ -90,7 +91,7 @@ generatePS settings req = concat
          , " = "
          ] <> hfields)
     hfields = [" { ", intercalate ", " hfieldNames, " }"]
-    hfieldNames = fmap toHField (htDefaults <> fmap fst headerArgTuples)
+    hfieldNames = fmap toHField (htDefaults <> fmap fst headerArgs)
     htDefaults = ["content_Type", "accept"]
     toHField h = h <> " :: String"
 
@@ -103,8 +104,8 @@ generatePS settings req = concat
         , "    method = \"" <> req ^. reqMethod <> "\""
         , "    headers = " <> " { "
             <> intercalate ", " (fmap wrapDefault htDefaults)
-            <> (if null headerArgTuples then " " else ", ")
-            <> intercalate ", " (fmap wrapHeader headerArgTuples) <> " }"
+            <> (if null headerArgs then " " else ", ")
+            <> intercalate ", " (fmap wrapHeader headerArgs) <> " }"
         , "    b = " <> bodyString
         ]
       where
@@ -126,7 +127,26 @@ generatePS settings req = concat
             ]
         bodyString = if req ^. reqBody then "(Just body)" else "Nothing"
         wrapDefault h = h <> ": \"application/json\""
-        wrapHeader (h, hv)  = h <> ": " <> hv
+        wrapHeader (h, (_, o))  = h <> ": " <> psHeaderArg o
+
+-- | Show HeaderArg instance from Servant.JQuery, changes to use PureScript
+-- monoidal bindings
+psHeaderArg :: HeaderArg -> String
+psHeaderArg (HeaderArg n)          = toValidFunctionName ("header" <> n)
+psHeaderArg (ReplaceHeaderArg n p)
+    | pn `isPrefixOf` p = pv <> " <> \"" <> rp <> "\""
+    | pn `isSuffixOf` p = "\"" <> rp <> "\" <> " <> pv
+    | pn `isInfixOf` p  = "\"" <> replace pn ("\" + " <> pv <> " + \"") p
+                               <> "\""
+    | otherwise         = p
+  where
+    pv = toValidFunctionName ("header" <> n)
+    pn = "{" <> n <> "}"
+    rp = replace pn "" p
+    -- Use replace method from Data.Text
+    replace old new = T.unpack .
+        T.replace (T.pack old) (T.pack new) .
+        T.pack
 
 ajaxImpl :: String
 ajaxImpl = unlines
