@@ -10,6 +10,7 @@ module Servant.PureScript (
   defaultSettings
 ) where
 
+import           Control.Arrow
 import           Control.Lens
 import           Data.Char
 import           Data.List
@@ -67,11 +68,11 @@ generatePS settings req = concat
   where
     args = suppliedArgs <> ["onSuccess", "onError"]
 
-    suppliedArgs = captures <> queryArgs <> body <> headerArgs
+    suppliedArgs = captures <> queryArgs <> body <> fmap snd headerArgTuples
 
     captures = fmap captureArg . filter isCapture $ req ^. reqUrl.path
     queryArgs  = fmap (view argName) queryParams
-    headerArgs = fmap (toValidFunctionName . (<>) "header" . headerArgName) $ req ^. reqHeaders
+    headerArgTuples = fmap (headerArgName &&& toValidFunctionName . (<>) "header" . headerArgName) (req ^. reqHeaders)
 
     fname = req ^. funcName
          <> if null captures then "" else "With"
@@ -89,7 +90,7 @@ generatePS settings req = concat
          , " = "
          ] <> hfields)
     hfields = [" { ", intercalate ", " hfieldNames, " }"]
-    hfieldNames = fmap toHField (htDefaults <> headerArgs)
+    hfieldNames = fmap toHField (htDefaults <> fmap snd headerArgTuples)
     htDefaults = ["content_Type", "accept"]
     toHField h = h <> " :: String"
 
@@ -102,8 +103,8 @@ generatePS settings req = concat
         , "    method = \"" <> req ^. reqMethod <> "\""
         , "    headers = " <> " { "
             <> intercalate ", " (fmap wrapDefault htDefaults)
-            <> (if null headerArgs then " " else ", ")
-            <> intercalate ", " (fmap wrapHeader headerArgs) <> " }"
+            <> (if null headerArgTuples then " " else ", ")
+            <> intercalate ", " (fmap wrapHeader headerArgTuples) <> " }"
         , "    b = " <> bodyString
         ]
       where
@@ -125,7 +126,7 @@ generatePS settings req = concat
             ]
         bodyString = if req ^. reqBody then "(Just body)" else "Nothing"
         wrapDefault h = h <> ": \"application/json\""
-        wrapHeader h  = h <> ": " <> h
+        wrapHeader (h, hv)  = h <> ": " <> hv
 
 ajaxImpl :: String
 ajaxImpl = unlines
