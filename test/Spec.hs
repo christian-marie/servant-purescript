@@ -46,6 +46,7 @@ main = hspec .
             let (gs :<|> _) = jquery headerHandlingProxy
             let m = generatePSModule defaultSettings "Bar" [gs]
             shouldParse m
+            m `shouldContain` " foo :: String"
             m `shouldContain` "foo: headerFoo"
 
 shouldParse :: String -> Expectation
