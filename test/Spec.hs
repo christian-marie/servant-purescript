@@ -24,8 +24,8 @@ type TestAPI = "simple" :> ReqBody String :> Post Bool
 type TopLevelRawAPI = "something" :> Get Int
                   :<|> Raw
 
-type HeaderHandlingAPI = "something" :> Header "Foo" String
-                                     :> Get Int
+type HeaderHandlingAPI = "something" :> Header "Foo" String :> Get Int
+                  :<|> Raw
 
 headerHandlingProxy :: Proxy HeaderHandlingAPI
 headerHandlingProxy = Proxy
@@ -33,7 +33,7 @@ headerHandlingProxy = Proxy
 main :: IO ()
 main = hspec .
     describe "generateJS" $ do
-        it "should generate valid javascript" $ do
+        it "should generate valid purescript" $ do
             let (postSimple :<|> getHasExtension ) = jquery (Proxy :: Proxy TestAPI)
             shouldParse $ generatePSModule defaultSettings "Foo" [postSimple]
             shouldParse $ generatePSModule defaultSettings "Foo" [getHasExtension]
@@ -42,6 +42,11 @@ main = hspec .
             let m = generatePSModule defaultSettings "Foo" [topLevel "GET"]
             shouldParse m
             m `shouldContain` "get :: "
+        it "should generate valid header variables" $ do
+            let (gs :<|> _) = jquery headerHandlingProxy
+            let m = generatePSModule defaultSettings "Bar" [gs]
+            shouldParse m
+            m `shouldContain` "foo: headerFoo"
 
 shouldParse :: String -> Expectation
 shouldParse =
