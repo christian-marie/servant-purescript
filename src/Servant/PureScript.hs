@@ -72,7 +72,7 @@ generatePS settings req = concat
 
     captures = fmap captureArg . filter isCapture $ req ^. reqUrl.path
     queryArgs  = fmap (view argName) queryParams
-    headerArgTuples = fmap (headerArgName &&& toValidFunctionName . (<>) "header" . headerArgName) (req ^. reqHeaders)
+    headerArgTuples = fmap (decapitalise . headerArgName &&& toValidFunctionName . (<>) "header" . headerArgName) (req ^. reqHeaders)
 
     fname = req ^. funcName
          <> if null captures then "" else "With"
@@ -90,7 +90,7 @@ generatePS settings req = concat
          , " = "
          ] <> hfields)
     hfields = [" { ", intercalate ", " hfieldNames, " }"]
-    hfieldNames = fmap toHField (htDefaults <> fmap snd headerArgTuples)
+    hfieldNames = fmap toHField (htDefaults <> fmap fst headerArgTuples)
     htDefaults = ["content_Type", "accept"]
     toHField h = h <> " :: String"
 
@@ -186,6 +186,11 @@ defaultSettings = PSSettings ""
 capitalise :: String -> String
 capitalise [] = []
 capitalise (x:xs) = [toUpper x] <> xs
+
+-- | Decapitalise a string for use as a Purescript variable name
+decapitalise :: String -> String
+decapitalise [] = []
+decapitalise (x:xs) = [toLower x] <> xs
 
 -- | Turn a list of path segments into a URL string
 psPathSegments :: [Segment] -> String
