@@ -130,7 +130,7 @@ generatePS settings req = concat
             , settings ^. baseURL
             , "/"
             , psPathSegments $ req ^.. reqUrl.path.traverse
-            , if null queryParams then "\"" else "?\" <> " <> psParams queryParams
+            , if null queryParams then "\"" else "?\" <> \n        " <> psParams queryParams
             ]
         bodyArgType :: [String]
         bodyArgType = [ "String" | req ^. reqBody ]
@@ -238,13 +238,13 @@ psParams qa = "intercalate \"&\" <<< catMaybes $ [" <> intercalate ", " (fmap ps
 --
 -- Must handle Maybe String as the input value
 psParamToStr :: QueryArg -> String
-psParamToStr qarg = "if isJust " <> name
-    <> " then " <> ifOK
-    <> " else \"\""
+psParamToStr qarg = "(if isJust " <> name
+    <> " then Just (" <> ifOK
+    <> ") else Nothing)"
   where
     ifOK = case qarg ^. argType of
-        Normal -> "\"" <> name <> "=\" <> encodeURIComponent <<< fromJust $ " <> name
+        Normal -> "\"" <> name <> "=\" <> encodeURIComponent (fromJust " <> name <> ")"
         Flag   -> "\"" <> name <> "=\""
-        List   -> "\"" <> name <> "[]=\" <> encodeURIComponent <<< fromJust $ " <> name
+        List   -> "\"" <> name <> "[]=\" <> encodeURIComponent (fromJust " <> name <> ")"
     name = qarg ^. argName
 
