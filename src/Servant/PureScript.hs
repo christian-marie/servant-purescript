@@ -36,6 +36,7 @@ generatePSModule settings mname reqs = unlines
         [ "module " <> mname <> " where"
         , ""
         , "import Control.Monad.Eff"
+        , "import Data.Array"
         , "import Data.Foldable"
         , "import Data.Foreign"
         , "import Data.Function"
@@ -231,14 +232,19 @@ psSegmentToStr (Cap s)    = "\" <> encodeURIComponent " <> s <> " <> \""
 
 -- | Turn a list of query string params into a URL string
 psParams :: [QueryArg] -> String
-psParams qa = "intercalate \"&\" [" <> intercalate ", " (fmap psParamToStr qa) <> "]"
+psParams qa = "intercalate \"&\" <<< catMaybes $ [" <> intercalate ", " (fmap psParamToStr qa) <> "]"
 
 -- | Turn an individual query string param into a PureScript variable handler
+--
+-- Must handle Maybe String as the input value
 psParamToStr :: QueryArg -> String
-psParamToStr qarg =
-  case qarg ^. argType of
-    Normal -> "\"" <> name <> "=\" <> encodeURIComponent " <> name
-    Flag   -> "\"" <> name <> "=\""
-    List   -> "\"" <> name <> "[]=\" <> encodeURIComponent " <> name
-  where name = qarg ^. argName
+psParamToStr qarg = "if isJust " <> name
+    <> " then " <> ifOK
+    <> " else \"\""
+  where
+    ifOK = case qarg ^. argType of
+        Normal -> "\"" <> name <> "=\" <> encodeURIComponent <<< fromJust $ " <> name
+        Flag   -> "\"" <> name <> "=\""
+        List   -> "\"" <> name <> "[]=\" <> encodeURIComponent <<< fromJust $ " <> name
+    name = qarg ^. argName
 
