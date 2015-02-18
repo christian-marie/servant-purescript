@@ -112,10 +112,16 @@ generatePS settings req = concat
         typeSig = concat
             [ fname
             , " :: forall eff. "
-            , intercalate " -> " $ fmap (const "String") suppliedArgs
+            , intercalate " -> " typedArgs
             , argLink
             , "(SuccessFn eff) -> (FailureFn eff) -> (Eff (xhr :: XHREff | eff) Unit)"
             ]
+        typedArgs :: [String]
+        typedArgs = concat $
+            [ fmap (const "String") captures
+            , fmap (const "Maybe String") queryArgs ]
+            <> [ bodyArgType ]
+            <> [ fmap (const "String") headerArgs ]
         argLink = if null suppliedArgs then "" else " -> "
         argString = unwords args
         urlString = concat
@@ -125,7 +131,9 @@ generatePS settings req = concat
             , psPathSegments $ req ^.. reqUrl.path.traverse
             , if null queryParams then "\"" else "?\" <> " <> psParams queryParams
             ]
-        bodyString = if req ^. reqBody then "(Just body)" else "Nothing"
+        bodyArgType :: [String]
+        bodyArgType = [ "String" | req ^. reqBody ]
+        bodyString  = if req ^. reqBody then "(Just body)" else "Nothing"
         wrapDefault h = h <> ": \"application/json\""
         wrapHeader (h, (_, o))  = h <> ": " <> psHeaderArg o
 
