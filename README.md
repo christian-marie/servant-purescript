@@ -1,3 +1,9 @@
+🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴
+# THIS PROJECT IS LOOKING FOR A MAINTAINER
+
+See: https://github.com/WhereSoftwareGoesToDie/servant-purescript/issues/5
+🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴
+
 # servant-purescript
 
 [![Build Status](https://travis-ci.org/anchor/servant-purescript.svg?branch=master)](https://travis-ci.org/anchor/servant-purescript)
