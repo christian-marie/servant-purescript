@@ -4,6 +4,12 @@
 See: https://github.com/WhereSoftwareGoesToDie/servant-purescript/issues/5
 🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴
 
+## Alternative implementation exists
+
+This project is not the servant-purescript from hackage, the one on hackage can be found [here](https://github.com/eskimor/servant-purescript), it is actively maintained and used.
+
+Haddocks for this alternative implementation can be found on [stackage](https://www.stackage.org/nightly/package/servant-purescript).
+
 # servant-purescript
 
 [![Build Status](https://travis-ci.org/anchor/servant-purescript.svg?branch=master)](https://travis-ci.org/anchor/servant-purescript)
